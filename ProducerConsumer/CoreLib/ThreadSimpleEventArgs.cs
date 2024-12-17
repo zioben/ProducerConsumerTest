@@ -7,11 +7,18 @@ using System.Threading.Tasks;
 namespace CoreLib
 {
     /// <summary>
-    /// Not used.
+    /// EventArgs that contains ThreadSimple execution context
     /// </summary>
     public class ThreadSimpleEventArgs : EventArgs
     {
-        public Thread Thread { get; internal set; }
-        public CancellationToken? Token { get; internal set; }
+        /// <summary>
+        /// Running thread
+        /// </summary>
+        public Thread? thread { get; internal set; }
+
+        /// <summary>
+        /// Cancellation token
+        /// </summary>
+        public CancellationToken? token { get; internal set; }
     }
 }

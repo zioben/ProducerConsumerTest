@@ -11,15 +11,12 @@ using System.Threading.Tasks;
 namespace CoreLib
 {
     /// <summary>
-    /// Generates and consume data
+    /// Class that produce and consume frame data.
     /// <para>
-    /// Producer starts generating data after start() call.<br/>
-    /// </para>
-    /// <para>
-    /// Data consuming is enabled after a getDataAsync() call.<br/>
-    /// </para>
-    /// <para>
-    /// A call to stop() method blocks entire process.<br/>
+    /// This is a classic producer consumer competition model.<br/>
+    /// Producer starts generating frame data after start() call.<br/>
+    /// Data is consumed after a getDataAsync() call.<br/>
+    /// A call to stop() method blocks the entire producer consumer process.<br/>
     /// </para>
     /// </summary>
     public class DataGenerator
@@ -114,13 +111,18 @@ namespace CoreLib
         public int ConsumedSkipped { get; private set; }
 
 
-        ThreadSimple threadProducer;
-        ThreadSimple threadConsumer;
+        /// <summary>
+        /// Event called after frame creation to allow data payload population
+        /// </summary>
+        public event EventHandler<DataProcessorFrameEventArgs> OnEventFrameCreated;
 
-        Stack<Frame> frameStack;
+        ThreadSimple? threadProducer;
+        ThreadSimple? threadConsumer;
 
-        ConcurrentQueue<Frame> viewFrameQueue;
-        List<Task<Frame>> taskProcessingList;
+        Stack<Frame>? frameStack;
+
+        ConcurrentQueue<Frame>? viewFrameQueue;
+        List<Task<Frame>>? taskProcessingList;
         Random rand = new Random();
 
         int frameID = 0;
@@ -129,42 +131,52 @@ namespace CoreLib
 
         #endregion
 
-        public List<Frame> GetViewFrameList() => viewFrameQueue?.ToList();
-
-
+        #region MVP
 
         /// <summary>
-        /// Allocate resources and producer thread
+        /// Get the list of lat n processed frame for visualization purposes
+        /// </summary>
+        /// <returns></returns>
+        public List<Frame> GetViewFrameList() => viewFrameQueue?.ToList() ?? new List<Frame>();
+
+        #endregion
+
+        #region resource allcations
+
+        /// <summary>
+        /// Allocates resourcers for producer.<br/>
+        /// Create the producer thread.<br/>
         /// </summary>
         /// <returns></returns>
         public bool CreateProducer()
         {
             string sMethod = nameof(CreateProducer);
-            frameID = 0;
-            Produced = ProducedDropped = ProducedValid = 0;
-            threadProducer = new ThreadSimple()
-            {
-                Name = "Producer",
-                WakeupTime = ProducerTimeout
-            };
-            threadProducer.OnTimeout -= ThreadProducer_OnTimeout;
-            threadProducer.OnTimeout += ThreadProducer_OnTimeout;
             lock (lockerProducerConsumer)
             {
+                DestroyProducer();
+                frameID = 0;
+                Produced = ProducedDropped = ProducedValid = 0;
+                threadProducer = new ThreadSimple()
+                {
+                    Name = "Producer",
+                    WakeupTime = ProducerTimeout
+                };
+                threadProducer.OnTimeout -= ThreadProducer_OnTimeout;
+                threadProducer.OnTimeout += ThreadProducer_OnTimeout;
                 frameStack = new Stack<Frame>();
+                viewFrameQueue = new ConcurrentQueue<Frame>();
             }
-            viewFrameQueue = new ConcurrentQueue<Frame>();
-            taskProcessingList = new List<Task<Frame>>();
-
             return true;
         }
 
         /// <summary>
-        /// Dispose producer resources
+        /// Abort producer thread.<br/>
+        /// Dispose producer resources<br/>
         /// </summary>
         /// <returns></returns>
         bool DestroyProducer()
         {
+            string sMethod = nameof(DestroyProducer);
             lock (lockerProducerConsumer)
             {
                 threadProducer?.Destroy();
@@ -176,33 +188,44 @@ namespace CoreLib
         }
 
         /// <summary>
-        /// Initialize the consumer thread that must operate independently
+        /// Allocates resourcers for consumer.<br/>
+        /// Create the producer thread.<br/>
         /// </summary>
         bool CreateConsumer()
         {
             string sMethod = nameof(CreateConsumer);
-            Consumed = ConsumedValid = ConsumedSkipped = ConsumedRejected = 0;
-            threadConsumer = new ThreadSimple()
+            lock (lockerProducerConsumer)
             {
-                Name = $"Consumer",
-            };
-            threadConsumer.OnSignal -= ThreadConsumer_OnSignal;
-            threadConsumer.OnSignal += ThreadConsumer_OnSignal;
-            threadConsumer.Create();
+                DestroyConsumer();
+                Consumed = ConsumedValid = ConsumedSkipped = ConsumedRejected = 0;
+                taskProcessingList = new List<Task<Frame>>();
+                threadConsumer = new ThreadSimple()
+                {
+                    Name = $"Consumer",
+                };
+                threadConsumer.OnTrigger -= ThreadConsumer_OnSignal;
+                threadConsumer.OnTrigger += ThreadConsumer_OnSignal;
+                threadConsumer.Create().Start(true);
+            }
             return true;
         }
 
         /// <summary>
-        /// Dispose consumer reosurces
+        /// Abort consumer thread.<br/>
+        /// Dispose consumer resources<br/>
         /// </summary>
         bool DestroyConsumer()
         {
+            string sMethod = nameof(DestroyConsumer);
             lock (lockerProducerConsumer)
             {
-                string sMethod = nameof(DestroyConsumer);
                 threadConsumer?.Destroy();
                 threadConsumer = null;
-                Task.WaitAll(taskProcessingList.ToArray());
+                // wait for processing list comleted
+                if (taskProcessingList != null)
+                {
+                    Task.WaitAll(taskProcessingList.ToArray());
+                }
             }
             return true;
         }
@@ -218,9 +241,9 @@ namespace CoreLib
             return true;
         }
 
+        #endregion
 
-
-        #region Task producer consumer 
+        #region producer consumer thread job
 
         private void ThreadProducer_OnTimeout(object? sender, ThreadSimpleEventArgs e)
         {
@@ -229,9 +252,18 @@ namespace CoreLib
             {
                 FrameID = ++frameID,
                 ProcessingState = FrameState.created,
-                Payload = $"Hello {frameID}",
             };
-            Logger.LogMessage(sClassName, sMethod, $"{threadProducer.Name} : producing data '{frame}'");
+
+            Logger.LogMessage(sClassName, sMethod, $"{threadProducer?.Name} : producing data '{frame}'");
+            try
+            {
+                OnEventFrameCreated?.Invoke(this, new DataProcessorFrameEventArgs() { Frame = frame });
+            }
+            catch (Exception ex)
+            {
+                Logger.LogException(sClassName, sMethod, "Exception during payload creation", ex);
+                return;
+            }
 
             Produced++;
             while (viewFrameQueue.Count >= MaxQueueViewSize)
@@ -243,7 +275,7 @@ namespace CoreLib
             // only one can handle this
             lock (lockerProducerConsumer)
             {
-                if ( threadConsumer?.Initialized ?? false )
+                if (threadConsumer?.Initialized ?? false)
                 {
                     frameStack.Push(frame);
                     ProducedValid++;
@@ -254,7 +286,7 @@ namespace CoreLib
                     while (frameStack.TryPop(out var oldFrame))
                     {
                         oldFrame.ProcessingState = FrameState.dropped;
-                        Logger.LogWarning(sClassName, sMethod, $"{threadProducer.Name} : missing consumer : dropping frame {oldFrame.FrameID}");
+                        Logger.LogWarning(sClassName, sMethod, $"{threadProducer?.Name} : missing consumer : dropping frame {oldFrame.FrameID}");
                         ProducedValid--;
                         ProducedDropped++;
                     }
@@ -265,21 +297,21 @@ namespace CoreLib
         }
 
 
-        Frame ThreadConsumer_GetLastFrameProduced()
+        Frame? ThreadConsumer_GetLastFrameProduced()
         {
             string sMethod = nameof(ThreadConsumer_GetLastFrameProduced);
             if (!frameStack.TryPop(out var frame))
             {
                 if (threadProducer?.Initialized ?? false)
                 {
-                    Logger.LogWarning(sClassName, sMethod, $"{threadConsumer.Name} : THREAD SIGNALING RATE TOO HIGH!, but no frames are lost");
+                    Logger.LogWarning(sClassName, sMethod, $"{threadConsumer?.Name} : THREAD SIGNALING RATE TOO HIGH!, but no frames are lost");
                 }
                 return null;
             }
             while (frameStack.TryPop(out var oldFrame))
             {
                 oldFrame.ProcessingState = FrameState.skipped;
-                Logger.LogWarning(sClassName, sMethod, $"{threadProducer.Name} : frame too old : dropping frame {oldFrame.FrameID}");
+                Logger.LogWarning(sClassName, sMethod, $"{threadProducer?.Name} : frame too old : dropping frame {oldFrame.FrameID}");
                 lock (lockerCounters)
                 {
                     Consumed++;
@@ -289,7 +321,7 @@ namespace CoreLib
             return frame;
         }
 
-        private Task<Frame> ThreadConsumer_CreateProcessingTaskAsync(Frame frame)
+        private Task<Frame> ThreadConsumer_CreateProcessingTaskAsync(Frame frame, CancellationToken? token)
         {
             var dataProcessor = new DataProcessor()
             {
@@ -301,7 +333,7 @@ namespace CoreLib
             (sender, args) =>
             {
                 Consumed++;
-                if (threadConsumer?.cancellationTokenSource?.IsCancellationRequested ?? true)
+                if (token?.IsCancellationRequested ?? true)
                 {
                     ConsumedRejected++;
                     return;
@@ -318,10 +350,10 @@ namespace CoreLib
                     }
                 }
             };
-            return dataProcessor.ProcessDataAsync(frame, threadConsumer.cancellationTokenSource);
+            return dataProcessor.ProcessDataAsync(frame, token);
         }
 
-        private async void ThreadConsumer_OnSignal(object? sender, ThreadSimpleEventArgs e)
+        private void ThreadConsumer_OnSignal(object? sender, ThreadSimpleEventArgs e)
         {
             string sMethod = nameof(ThreadConsumer_OnSignal);
             try
@@ -354,7 +386,7 @@ namespace CoreLib
                     }
                     else
                     {
-                        taskProcessingList.Add(ThreadConsumer_CreateProcessingTaskAsync(frame));
+                        taskProcessingList.Add(ThreadConsumer_CreateProcessingTaskAsync(frame, e.token));
                     }
                 }
             }
@@ -373,18 +405,18 @@ namespace CoreLib
         /// <summary>
         /// Start the producer
         /// </summary>
-        /// <returns></returns>
+        /// <returns>true</returns>
         public bool start()
         {
             CreateProducer();
-            threadProducer.Create().Start();
+            threadProducer.Create().Start(false);
             return true;
         }
 
         /// <summary>
-        /// Stop the interface
+        /// Stop the producer/consumer interface
         /// </summary>
-        /// <returns></returns>
+        /// <returns>true</returns>
         public bool stop()
         {
             DestroyProducer();
@@ -393,96 +425,16 @@ namespace CoreLib
         }
 
         /// <summary>
-        /// Acquire only last frame
+        /// Start consuming data
         /// </summary>
-        /// <returns></returns>
-        public async Task<bool> getDataAsync()
+        /// <returns>true</returns>
+        public bool getData()
         {
-            return await Task.Run(() =>
-            {
-                string sMethod = nameof(getDataAsync);
-                try
-                {
-                    CreateConsumer();
-                    while (true)
-                    {
-                        switch (threadConsumer?.WaitForSignal(0) ?? ThreadSimple.EnumSignalType.Quit)
-                        {
-                            case ThreadSimple.EnumSignalType.Exception:
-                                {
-                                    Logger.LogError(sClassName, sMethod, "Detected exception on consumer");
-                                    return false;
-                                }
-                            case ThreadSimple.EnumSignalType.Quit:
-                                {
-                                    Logger.LogMessage(sClassName, sMethod, "Detected quit signal on consumer");
-                                    return true;
-                                }
-                        }
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Logger.LogException(sClassName, sMethod, "Exception raised", ex);
-                    return false;
-                }
-                finally
-                {
-                    DestroyConsumer();
-                }
-            });
-
-            #endregion
+            CreateConsumer();
+            return true;    
         }
+
+        #endregion
     }
 }
-
-
-        /*
-                /// <summary>
-                /// Acquire ucontinuosly using producer consumer mechanism
-                /// </summary>
-                /// <returns></returns>
-                public async Task<bool> getDataAsync()
-                {
-                    string sMethod = nameof(getDataAsync);
-                    return await Task<bool>.Run(async () =>
-                    {
-                        try
-                        {
-                            CreateConsumer();
-                            Frame frame = null;
-                            lock (lockerProducerConsumer)
-                            {
-                                frame = ThreadConsumer_GetLastFrameProduced();
-                            }
-                            if (frame == null)
-                            {
-                                if (threadConsumer.WaitForSignal(0) == ThreadSimple.EnumSignalType.Trigger)
-                                {
-                                    lock (lockerProducerConsumer)
-                                    {
-                                        frame = ThreadConsumer_GetLastFrameProduced();
-                                    }
-                                }
-                            }
-                            if (frame != null)
-                            {
-                                await Task<Frame>.Run(() => ThreadConsumer_CreateProcessingTaskAsync(frame));
-                                DestroyConsumer();
-                                return true;
-                            }
-                            return false;
-                        }
-                        catch (Exception ex)
-                        {
-                            Logger.LogException(sClassName, sMethod, "Exception raised", ex);
-                            return false;
-                        }
-                    });
-                }
-
-                #endregion
-            }
-            }*/
-    
+        

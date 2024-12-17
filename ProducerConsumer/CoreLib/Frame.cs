@@ -40,10 +40,16 @@ namespace CoreLib
         /// Consumer can't process the information
         /// </summary>
         skipped,
+
         /// <summary>
         /// Consumer can't process the information
         /// </summary>
-        rejected
+        rejected,
+
+        /// <summary>
+        /// Frame is aborted due to exception or cancellation
+        /// </summary>
+        aborted,
     }
 
     /// <summary>
@@ -64,7 +70,7 @@ namespace CoreLib
         /// <summary>
         /// Data payload
         /// </summary>
-        public object Payload { get; internal set; }
+        public object? Payload { get; set; }
 
         /// <summary>
         /// State processing state

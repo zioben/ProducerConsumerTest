@@ -110,28 +110,34 @@ namespace WinApp
                                     lvItem.ForeColor = Color.Black;
                                     break;
                                 }
-                            case FrameState.processed:
-                                {
-                                    lvItem.BackColor = Color.Green;
-                                    lvItem.ForeColor = Color.White;
-                                    break;
-                                }
                             case FrameState.processing:
                                 {
                                     lvItem.BackColor = Color.DarkGreen;
                                     lvItem.ForeColor = Color.LightGray;
                                     break;
                                 }
-                            case FrameState.rejected:
+                            case FrameState.processed:
+                                {
+                                    lvItem.BackColor = Color.Green;
+                                    lvItem.ForeColor = Color.White;
+                                    break;
+                                }
+                            case FrameState.aborted:
                                 {
                                     lvItem.BackColor = Color.Red;
                                     lvItem.ForeColor = Color.Yellow;
                                     break;
                                 }
+                            case FrameState.rejected:
+                                {
+                                    lvItem.BackColor = Color.Red;
+                                    lvItem.ForeColor = Color.White;
+                                    break;
+                                }
                             case FrameState.skipped:
                                 {
-                                    lvItem.BackColor = Color.DarkRed;
-                                    lvItem.ForeColor = Color.Yellow;
+                                    lvItem.BackColor = Color.DarkCyan;
+                                    lvItem.ForeColor = Color.White;
                                     break;
                                 }
                             case FrameState.unknown:
@@ -193,23 +199,28 @@ namespace WinApp
             }
         }
 
-        
+
 
         private void btnStart_Click(object sender, EventArgs e)
         {
             oApp.start();
             pgConfig.Enabled = false;
+            btnSetup.Enabled = false;
         }
 
         private void btnStop_Click(object sender, EventArgs e)
         {
             oApp.stop();
             pgConfig.Enabled = true;
+            btnSetup.Enabled = true;
+            btnGetData.Enabled = true;
         }
 
         private void btnGetData_Click(object sender, EventArgs e)
         {
             oApp.getData();
+            //btnGetData.Enabled = false;  
+            btnSetup.Enabled = false;
         }
 
         private void btnSetup_Click(object sender, EventArgs e)
@@ -218,9 +229,49 @@ namespace WinApp
             oApp.Create();
         }
 
+        private void btnPreset_Click(object sender, EventArgs e)
+        {
+            var index = cbPreset.SelectedIndex;
+            switch (index)
+            {
+                case 0:
+                    {
+                        oApp.Config.ProducerTimeout = 3000;
+                        oApp.Config.ProcessorMinimumSleep = 2500;
+                        oApp.Config.ProcessorMaxRandomSleep = 1000;
+                    }
+                    break;
+                case 1:
+                    {
+                        oApp.Config.ProducerTimeout = 1000;
+                        oApp.Config.ProcessorMinimumSleep = 500;
+                        oApp.Config.ProcessorMaxRandomSleep = 1000;
+                    }
+                    break;
+                case 2:
+                    {
+                        oApp.Config.ProducerTimeout = 100;
+                        oApp.Config.ProcessorMinimumSleep = 500;
+                        oApp.Config.ProcessorMaxRandomSleep = 1000;
+                    }
+                    break;
+                case 3:
+                    {
+                        oApp.Config.ProducerTimeout = 20;
+                        oApp.Config.ProcessorMinimumSleep = 50;
+                        oApp.Config.ProcessorMaxRandomSleep = 100;
+                    }
+                    break;
+
+            }
+            pgConfig.SelectedObject = oApp.Config;
+        }
+
         private void FormHMI_FormClosed(object sender, FormClosedEventArgs e)
         {
             oApp.stop();
         }
+
+   
     }
 }

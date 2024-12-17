@@ -8,7 +8,9 @@ using System.Threading.Tasks;
 namespace CoreLib
 {
     /// <summary>
-    /// Main application interface
+    /// Main application interface<br/>
+    /// Handle the DataGenerator<br/>
+    /// Generate the frame payload<br/>
     /// </summary>
     public class App
     {
@@ -65,7 +67,7 @@ namespace CoreLib
         /// <summary>
         /// The data generator instance
         /// </summary>
-        public DataGenerator DataGenerator { get; private set; }
+        public DataGenerator DataGenerator { get; private set; } = new DataGenerator();
 
         /// <summary>
         /// Allocate resources
@@ -75,8 +77,6 @@ namespace CoreLib
         {
             string sMethod = nameof(Create);
             Destroy();
-            ThreadPool.SetMinThreads(200,200);
-            ThreadPool.SetMaxThreads(300,300);
             Logger.LogMessage(sClassName, sMethod, "Starting main App");
             DataGenerator = new DataGenerator()
             {
@@ -86,8 +86,20 @@ namespace CoreLib
                 ProcessorMinimumSleep = Config.ProcessorMinimumSleep,
                 ProducerTimeout = Config.ProducerTimeout,
             };
+            DataGenerator.OnEventFrameCreated -= DataGenerator_OnEventFrameCreated;
+            DataGenerator.OnEventFrameCreated += DataGenerator_OnEventFrameCreated;
             DataGenerator.CreateProducer();
             Logger.LogMessage(sClassName, sMethod, "App Started");
+        }
+
+        /// <summary>
+        /// Method that creates the payload
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private void DataGenerator_OnEventFrameCreated(object? sender, DataProcessorFrameEventArgs e)
+        {
+            e.Frame.Payload = $"Frame {e.Frame.FrameID} : Timestamp {e.Frame.Timestamp:HH:mm:ss.fff}";
         }
 
         /// <summary>
@@ -120,6 +132,6 @@ namespace CoreLib
         /// <summary>
         /// Start consumer
         /// </summary>
-        public void getData() => DataGenerator.getDataAsync();
+        public void getData() => DataGenerator.getData();
     }
 }

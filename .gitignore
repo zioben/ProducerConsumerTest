@@ -3,3 +3,9 @@
 ################################################################################
 
 /Docs
+/.vs
+/ProducerConsumer/CoreLib/bin/Debug/net6.0
+/ProducerConsumer/CoreLib/obj
+/ProducerConsumer/WinApp/.vs
+/ProducerConsumer/WinApp/bin/Debug/net6.0-windows
+/ProducerConsumer/WinApp/obj

@@ -9,8 +9,18 @@ namespace CoreLib
 {
     /// <summary>
     /// Simple Thread Handler<br/> 
-    /// Once started can raise by a timeout or a trigger event
-    /// </summary>
+    /// <para>
+    /// This class provides a synchronization event mechanism for simple operations.<br/>
+    /// Only three AutoResetEvent are provided:<br/>
+    /// <list type="bullet">Trigger Signal - raised by a source (task,thread, another async caller method) to communicate that a condition occours</list>
+    /// <list type="bullet">Quit Signal - raised by another task od by the destructor to inform about the abort of the source</list>
+    /// <list type="bullet">Tiemout Signal (when used) - raised periodically</list>
+    /// </para>
+    /// <para>
+    /// This class can also manage automatically a Thread for long time operations<br/>
+    /// The created task runs and wait for any signal that can raise a .net event accordingly<br/>
+    /// <seealso cref="ThreadSimple.OnTrigger"/> <seealso cref="ThreadSimple.OnQuit"/> <seealso cref="ThreadSimple.OnTimeout"/><br/>
+    /// This is the core class for the producer consumer implementation<br/>
     public class ThreadSimple
     {
         static readonly string sClassName = nameof(ThreadSimple);
@@ -25,34 +35,45 @@ namespace CoreLib
             /// </summary>
             Unknown = 0,
             /// <summary>
-            /// Operation aborted due to exception
+            /// Operation aborted due to exception during AutoresetEvent handling
             /// </summary>
             Exception = 1,
             /// <summary>
-            /// Quit signal
+            /// Quit AutoresetEvent is set
             /// </summary>
             Quit = 2,
             /// <summary>
-            /// Trigger signal
+            /// Trigger AutoresetEvent is set
             /// </summary>
             Trigger = 3,
             /// <summary>
-            /// Timing signal
+            /// Timer polling AutoresetEvent is set
             /// </summary>
             Timeout = 4,    
         }
      
         // Microsoft specifications : for Long time running operations is suggested to use Thread instead of Task
-        Thread oThread;
+        Thread? oThread;
+
+        /// <summary>
+        /// Thread Identifier
+        /// </summary>
         public string Name { get; set; } = "*Thread*";
      
         readonly AutoResetEvent oSignalExecute = new AutoResetEvent(false);
         readonly AutoResetEvent oSignalQuit = new AutoResetEvent(false);
         readonly AutoResetEvent oSignalWakeupRestart = new AutoResetEvent(false);
 
-        public CancellationTokenSource cancellationTokenSource { get; private set; }
+        /// <summary>
+        /// Cancellation oken to notify chain processing that the Thread is about to abort
+        /// </summary>
+        CancellationTokenSource cancellationTokenSource= new CancellationTokenSource();
         
-        public uint iWakeupTime = 1000;
+        uint iWakeupTime = 1000;
+
+        /// <summary>
+        /// Setup polling time. Set to Zero to disable (Infinite wait time)
+        /// </summary>
         public uint WakeupTime
         {
             get
@@ -62,21 +83,36 @@ namespace CoreLib
             set
             {
                 iWakeupTime = value;
+                // Set the dummy event to wake-up the thread and restart polling timer
                 oSignalWakeupRestart.Set();
             }
         }
 
+        /// <summary>
+        /// Notify that resources are allocated
+        /// </summary>
         public bool Initialized { get; private set; }
 
-        public bool Running
-        {
-            get
-            {
-                if (oThread == null)
-                    return false;
-                return oThread.IsAlive;
-            }
-        }
+        /// <summary>
+        /// Notify that the thread is running
+        /// </summary>
+        public bool Running => oThread?.IsAlive ?? false;
+
+
+        /// <summary>
+        /// Raised when external trigger event rises 
+        /// </summary>
+        public event EventHandler<ThreadSimpleEventArgs> OnTrigger;
+
+        /// <summary>
+        /// Raised on timeout
+        /// </summary>
+        public event EventHandler<ThreadSimpleEventArgs> OnTimeout;
+
+        /// <summary>
+        /// Raised when quit event rises 
+        /// </summary>
+        public event EventHandler OnQuit;
 
         /// <summary>
         /// Initialize thread infrastructure and start working thread
@@ -94,16 +130,24 @@ namespace CoreLib
         }
 
         /// <summary>
-        /// Start thread job
+        /// Start automatic thread job
         /// </summary>
+        /// <para>
+        /// Thread is created and runs, looping and waiting for one AutoResetEvent signal
+        /// </para>
+        /// <param name="triggerSiganled">Raise trigger signal immediately</param>
         /// <returns></returns>
-        public ThreadSimple Start()
+        public ThreadSimple? Start(bool triggerSignaled)
         {
             string sMethod = nameof (Start);
             if (!Initialized)
             {
                 Logger.LogError(sClassName, sMethod, $"{Name} : class not initialized");
                 return null;
+            }
+            if (triggerSignaled)
+            {
+                ThreadSignal();
             }
             oThread = new Thread(ThreadJob);
             oThread.IsBackground = true;
@@ -149,10 +193,11 @@ namespace CoreLib
 
         #region Working thread code
 
-        public event EventHandler<ThreadSimpleEventArgs> OnSignal;
-        public event EventHandler<ThreadSimpleEventArgs> OnTimeout;
-        public event EventHandler OnQuit;
+      
 
+        /// <summary>
+        /// The thread loop job
+        /// </summary>
         void ThreadJob()
         {
             string sMethod = nameof(ThreadJob);
@@ -182,6 +227,11 @@ namespace CoreLib
             Logger.LogMessage(sClassName, sMethod, $"{Name} : Thread end");
         }
 
+        /// <summary>
+        /// Processes AutoReseEvent ID and raises events accordingly
+        /// </summary>
+        /// <param name="iEventID"></param>
+        /// <returns></returns>
         EnumSignalType ProcessEvents( int iEventID )
         {
             string sMethod = nameof(ProcessEvents); 
@@ -205,10 +255,10 @@ namespace CoreLib
                     {
                         try
                         {
-                            OnSignal?.Invoke(this, new ThreadSimpleEventArgs()
+                            OnTrigger?.Invoke(this, new ThreadSimpleEventArgs()
                             {
-                                Thread = oThread,
-                                Token = cancellationTokenSource.Token,
+                                thread = oThread,
+                                token = cancellationTokenSource.Token,
                             });
                             return  EnumSignalType.Trigger;
                         }
@@ -218,14 +268,15 @@ namespace CoreLib
                             return  EnumSignalType.Exception;
                         }
                     }
+                case 2:
                 default:
                     {
                         try
                         {
                             OnTimeout?.Invoke(this, new ThreadSimpleEventArgs()
                             {
-                                Thread = oThread,
-                                Token = cancellationTokenSource.Token,
+                                thread = oThread,
+                                token = cancellationTokenSource.Token,
                             });
                             return  EnumSignalType.Timeout;    
                         }
@@ -240,9 +291,11 @@ namespace CoreLib
         #endregion
 
         /// <summary>
-        /// Wait for a notification
+        /// Wait for an AutoResetEvent signal.
+        /// <para>Raises events accordingly </para> 
+        /// <para>Any method caller will block until a signal comes</para> 
         /// </summary>
-        /// <param name="iWakeupTime"></param>
+        /// <param name="iWakeupTime">maximum timeout delay: 0 for infinite timeout</param>
         /// <returns></returns>
         public EnumSignalType WaitForSignal(int iWakeupTime)
         {
@@ -250,7 +303,6 @@ namespace CoreLib
             Logger.LogMessage(sClassName, sMethod, $"{Name} : Waiting for event");
             try
             {
-
                 AutoResetEvent[] oEvents = { oSignalQuit, oSignalExecute, oSignalWakeupRestart };
                 int iTime = iWakeupTime == 0 ? Timeout.Infinite : (int)iWakeupTime;
                 return ProcessEvents(WaitHandle.WaitAny(oEvents, iTime));

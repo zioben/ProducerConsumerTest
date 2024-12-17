@@ -44,7 +44,7 @@ namespace CoreLib
         /// </summary>
         /// <param name="frame">Processing frame</param>
         /// <returns></returns>
-        public async Task<Frame> ProcessDataAsync(Frame frame, CancellationTokenSource cts )
+        public async Task<Frame> ProcessDataAsync(Frame frame, CancellationToken? token )
         {
             string sMethod = nameof(ProcessDataAsync);
             return await Task.Run( () =>
@@ -63,7 +63,7 @@ namespace CoreLib
                     int iLast = sleep % 100;
                     for (int i = 0; i < iLoop; i++)
                     {
-                        cts?.Token.ThrowIfCancellationRequested();
+                        token?.ThrowIfCancellationRequested();
                         Thread.Sleep(100);
                     }
                     if (iLast > 0)
@@ -76,7 +76,7 @@ namespace CoreLib
                 }
                 catch (Exception ex)
                 {
-                    frame.ProcessingState = FrameState.dropped;
+                    frame.ProcessingState = FrameState.aborted;
                     Logger.LogException(sClassName, sMethod, $"{ProcessingID} : Frame {frame.FrameID} : Exception", ex);
                     return frame;
                 }

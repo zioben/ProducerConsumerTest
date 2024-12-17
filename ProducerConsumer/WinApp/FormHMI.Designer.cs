@@ -35,6 +35,9 @@
             ListViewItem listViewItem4 = new ListViewItem("f4");
             tableLayoutPanel1 = new TableLayoutPanel();
             panel1 = new Panel();
+            btnPreset = new Button();
+            cbPreset = new ComboBox();
+            label3 = new Label();
             btnSetup = new Button();
             label2 = new Label();
             label1 = new Label();
@@ -76,6 +79,9 @@
             // 
             // panel1
             // 
+            panel1.Controls.Add(btnPreset);
+            panel1.Controls.Add(cbPreset);
+            panel1.Controls.Add(label3);
             panel1.Controls.Add(btnSetup);
             panel1.Controls.Add(label2);
             panel1.Controls.Add(label1);
@@ -90,20 +96,49 @@
             panel1.Size = new Size(590, 479);
             panel1.TabIndex = 1;
             // 
+            // btnPreset
+            // 
+            btnPreset.Location = new Point(300, 9);
+            btnPreset.Name = "btnPreset";
+            btnPreset.Size = new Size(135, 33);
+            btnPreset.TabIndex = 10;
+            btnPreset.Text = "Update Setup";
+            btnPreset.UseVisualStyleBackColor = true;
+            btnPreset.Click += btnPreset_Click;
+            // 
+            // cbPreset
+            // 
+            cbPreset.FormattingEnabled = true;
+            cbPreset.Items.AddRange(new object[] { "Slow", "Default", "Fast", "Insane" });
+            cbPreset.Location = new Point(87, 15);
+            cbPreset.Name = "cbPreset";
+            cbPreset.Size = new Size(203, 23);
+            cbPreset.TabIndex = 9;
+            cbPreset.Text = "Default";
+            // 
+            // label3
+            // 
+            label3.AutoSize = true;
+            label3.Location = new Point(9, 18);
+            label3.Name = "label3";
+            label3.Size = new Size(72, 15);
+            label3.TabIndex = 8;
+            label3.Text = "Setup Preset";
+            // 
             // btnSetup
             // 
-            btnSetup.Location = new Point(9, 3);
+            btnSetup.Location = new Point(9, 46);
             btnSetup.Name = "btnSetup";
             btnSetup.Size = new Size(135, 33);
             btnSetup.TabIndex = 7;
-            btnSetup.Text = "Setup New Settings";
+            btnSetup.Text = "Validate Setup";
             btnSetup.UseVisualStyleBackColor = true;
             btnSetup.Click += btnSetup_Click;
             // 
             // label2
             // 
             label2.AutoSize = true;
-            label2.Location = new Point(296, 39);
+            label2.Location = new Point(300, 82);
             label2.Name = "label2";
             label2.Size = new Size(85, 15);
             label2.TabIndex = 6;
@@ -112,7 +147,7 @@
             // label1
             // 
             label1.AutoSize = true;
-            label1.Location = new Point(9, 39);
+            label1.Location = new Point(9, 82);
             label1.Name = "label1";
             label1.Size = new Size(43, 15);
             label1.TabIndex = 5;
@@ -121,22 +156,22 @@
             // pgConfig
             // 
             pgConfig.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left;
-            pgConfig.Location = new Point(9, 57);
+            pgConfig.Location = new Point(9, 110);
             pgConfig.Name = "pgConfig";
-            pgConfig.Size = new Size(281, 419);
+            pgConfig.Size = new Size(281, 366);
             pgConfig.TabIndex = 4;
             // 
             // pgDataGen
             // 
             pgDataGen.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left;
-            pgDataGen.Location = new Point(300, 57);
+            pgDataGen.Location = new Point(300, 110);
             pgDataGen.Name = "pgDataGen";
-            pgDataGen.Size = new Size(272, 419);
+            pgDataGen.Size = new Size(272, 366);
             pgDataGen.TabIndex = 3;
             // 
             // btnGetData
             // 
-            btnGetData.Location = new Point(155, 3);
+            btnGetData.Location = new Point(155, 46);
             btnGetData.Name = "btnGetData";
             btnGetData.Size = new Size(135, 33);
             btnGetData.TabIndex = 2;
@@ -146,7 +181,7 @@
             // 
             // btnStop
             // 
-            btnStop.Location = new Point(437, 3);
+            btnStop.Location = new Point(441, 46);
             btnStop.Name = "btnStop";
             btnStop.Size = new Size(135, 33);
             btnStop.TabIndex = 1;
@@ -156,7 +191,7 @@
             // 
             // btnStart
             // 
-            btnStart.Location = new Point(296, 3);
+            btnStart.Location = new Point(300, 46);
             btnStart.Name = "btnStart";
             btnStart.Size = new Size(135, 33);
             btnStart.TabIndex = 0;
@@ -228,6 +263,7 @@
             // timerRefresh
             // 
             timerRefresh.Enabled = true;
+            timerRefresh.Interval = 250;
             timerRefresh.Tick += timerRefresh_Tick;
             // 
             // FormHMI
@@ -238,7 +274,7 @@
             Controls.Add(splitContainer1);
             DoubleBuffered = true;
             Name = "FormHMI";
-            Text = "Form1";
+            Text = "Form Producer Consumer";
             FormClosed += FormHMI_FormClosed;
             tableLayoutPanel1.ResumeLayout(false);
             panel1.ResumeLayout(false);
@@ -270,5 +306,8 @@
         private ColumnHeader chTimestamp;
         private ColumnHeader chState;
         private ColumnHeader chData;
+        private ComboBox cbPreset;
+        private Label label3;
+        private Button btnPreset;
     }
 }
