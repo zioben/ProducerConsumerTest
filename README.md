@@ -4,6 +4,10 @@ This is a Producer-consumer implementation, using the c#.net 6.0 core library, w
 ## Purposes
 This application demonstrates the capacity to produce and consume data fetching the last produced data when available.
 
+## Logs
+The log is responsible for tracking data allocation and generation.
+Every log message is dispatched on Windows.Trace, File (in .bin/Logs folder) and even on HMI using events.
+
 ## Data
 There is a generic Frame class container that can carry an object payload.
 Every Frame, once created, raises an event that the application can intercept to populate the Payload Property.
@@ -16,7 +20,7 @@ Additional data for the frame is:
   - dropped, Producer drops the information.
   - processing, Consumer has started the processing.
   - processed, Consumer has successfully processed the frame.
-  - skipped, Consumer skips the data from the stack. It is an unusual condition that occurs when consumer and producer are suddenly restarted.
+  - skipped, Consumer skips the data from the stack. It is an unusual condition that occurs when the consumer and producer are suddenly restarted.
   - rejected, Consumer rejected the frame because has no resources to process it.
   - aborted, Consumer rejected the frame 'cause abort operation is pending.
 
@@ -28,13 +32,17 @@ It updates a queue of Frame data to allow View inspection.
 Finally, if a consumer is instantiated it signals the presence of new Frame data, otherwise, it drops all the frames in the stack, except the last one.
 
 ## Consumer
-
-There are two threads that manages signals.
-The producer continuosly generates data and push in in a interlocked stack (instead of a classic queue).
-When the consumer is not instantiated the producer automatically drops the old acquisition in the frame and updates with the new data generated.
-When consumer is instantiated the producer notify an AutoResetEvent
-
+The consumer, once instantiated, checks the presence of a data frame in the stack.
+If exists it starts processing the frame asynchronously using a task, then waits for any new data.
+Every frame processed is inserted in a queue list of tasks. Higher the degree of parallelism, the more tasks can process data at the same time, making the class fully scalable.
+When the maximum parallelism degree is reached the consumers start to reject frames until a task completes the processing.
 
 ## HMI
+Main Form:
 ![Alt text](./Images/001_Main.jpg?raw=true)
+![Alt text](./Images/002_Setup_config.jpg?raw=true)
+![Alt text](./Images/003_Validate.jpg?raw=true)
+![Alt text](./Images/005_Scalability.jpg?raw=true)
+![Alt text](./Images/005_Scalability2.jpg?raw=true)
+![Alt text](./Images/007_results.jpg?raw=true)
 
