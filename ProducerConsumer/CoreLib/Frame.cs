@@ -77,6 +77,9 @@ namespace CoreLib
         /// </summary>
         public FrameState ProcessingState { get; internal set; } = FrameState.unknown;
 
+        /// <summary>
+        /// Processed ok flag
+        /// </summary>
         public bool Processed => ProcessingState == FrameState.processed;
 
         public override string ToString()
